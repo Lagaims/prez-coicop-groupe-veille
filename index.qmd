@@ -1,0 +1,555 @@
+---
+title: "Automating COICOP Coding for Household Budget Surveys: A Hybrid, Production-Ready Approach"
+subtitle: "ISI World Statistics Congress 2026"
+author:
+  - name: "Laura GAIMARD"
+    email: "laura.gaimard@insee.fr"
+    affiliations:
+      - name: "Insee — French National Institute of Statistics and Economic Studies"
+        department: "Directorate of statistical methodology"
+date: "06/06/2026"
+description: |
+  ISI World Statistics Congress 2026
+
+slide-tone: false
+chalkboard: false
+jump-to-slide: true
+mouse-wheel: false
+transition: slide
+
+embed-resources: true
+custom-toc: false
+lightbox: true
+
+editor:
+  render-on-save: true
+---
+
+# 1. Context {#chapters_1 .backgroundTitre_violet}
+
+::: {.notes}
+Let me start with the context: what COICOP is, why it matters, and the specific challenges of the 2026 BdF wave.
+:::
+
+## COICOP: a hierarchical consumption classification {#section_1_0 .backgroundStandard_violet}
+
+:::{.enteteAvecTitre}
+Context
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**Classification of Individual Consumption by Purpose**
+
+- International standard — backbone of **CPI computation** across EU member states
+- Hierarchical: division → group → class → sub-class (~500 leaf codes)
+- Assigning a code requires understanding both the **product** and its **purpose**
+
+| Level | Example |
+|-------|---------|
+| Division | `01` — Food |
+| Sub-class | `01.1.1.1` — Rice |
+:::
+
+::: {.column width="45%"}
+**A cross-cutting challenge for OS**
+
+| Survey / Register | Classification |
+|-------------------|----------------|
+| Business registers | NACE |
+| **Household Budget Survey** | **COICOP** |
+| Professions | SPC |
+
+<br>
+
+**Historically manual — now unsustainable**
+
+Volumes have grown; expert teams have shrunk.
+
+[A recurring bottleneck across official statistics.]{.bold}
+:::
+
+:::
+
+::: {.notes}
+COICOP — Classification of Individual Consumption by Purpose — is the international standard for classifying household expenditures. It's hierarchical: 12 top-level divisions, subdivided into groups, classes, and sub-classes. About 500 active leaf codes. Assigning a code requires understanding both what the product is and what it's used for — a pure string match is not enough. The same challenge exists across official statistics: NACE for businesses, ISCO for occupations. The approach we present here was built for COICOP but designed with generalisability in mind.
+:::
+
+## The 2026 BdF wave: a perfect storm {#section_1_1 .backgroundStandard_violet}
+
+:::{.enteteAvecTitre}
+Context
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**Household Budget Survey (HBS)**
+
+- Conducted every **5 years** — last wave: 2017
+- ~**70,000 distinct free-text labels** to code into COICOP
+- Goal: reconstruct consumption baskets → **CPI & inflation analysis**
+
+:::
+
+::: {.column width="45%"}
+**2026 — everything has changed at once**
+
+- New collection modes: smartphone, receipts, paper
+- Former rule-based system **obsolete**
+- COICOP updated since 2017 → **limited reuse** of past labels
+- Annotation team: **7 people → 1**
+
+**Deadline: 6 months** to build a production-ready pipeline
+
+:::
+
+:::
+
+::: {.notes}
+The 2026 wave of the Household Budget Survey faces a perfect storm of constraints. The collection mode has been completely revised, generating labels from new sources — smartphones, scanned receipts, paper diaries — with different characteristics. The COICOP nomenclature was updated in 2018, so historical annotations are only partially reusable. The annotation team went from seven people to one. And the deadline is 6 months. Manual coding is simply not an option.
+:::
+
+## Key challenges {#section_1_2 .backgroundStandard_violet}
+
+:::{.enteteAvecTitre}
+Context
+:::
+
+::: {.columns}
+
+::: {.column width="50%"}
+**Classification**
+
+- ~900 granular COICOP classes, distributed in five hierarchical levels
+- COICOP classes updated since the last wave
+
+**Labels**
+
+- Heterogeneous textual inputs — format and verbosity vary widely across sources
+- Generic, ambiguous, or uninformative (*"divers alimentaire"*, *"article"*)
+- Same string can map to different codes depending on context
+
+:::
+
+::: {.column width="50%"}
+
+**Annotation**
+
+- Few annotated labels available for the new version (few human resources)
+- Limited and unevenly distributed labelled data across COICOP divisions
+
+**Tools**
+
+- No GPU available on production servers → lightweight inference required
+:::
+
+:::
+
+::: {.notes}
+Before describing the pipeline, it's worth laying out the five dimensions that make this problem hard. The classification is highly granular and was updated, so past labels have limited reuse value. The multimode collection produces heterogeneous inputs. Many labels are too vague to code confidently. Annotated data is scarce and unevenly distributed. And production constraints rule out GPU-based inference.
+:::
+
+# 2. The Coding Methods {#chapters_2 .backgroundTitre_vert}
+
+::: {.notes}
+Let me now walk through the pipeline — first the overall architecture, then each method in turn.
+:::
+
+## Pipeline overview {#section_2_0 .backgroundStandard_vert}
+
+:::{.enteteAvecTitre}
+The Coding Methods
+:::
+
+![](img/overview_coicop.png){fig-align="center" width=90%}
+
+::: {.notes}
+Here's the overall pipeline. Raw product labels first pass through a rule-based pre-filter. Those that aren't caught are processed by three independent methods in parallel: LCS, TTC, and RAG. A final LLM-as-Judge step arbitrates between the three predictions. The pipeline runs as a DAG on Argo Workflows on the SSPCloud Kubernetes cluster, with data flowing via Parquet files on S3.
+:::
+
+## Method 1 — LCSubstr: leveraging historical annotations {#section_2_2 .backgroundStandard_vert}
+
+:::{.enteteAvecTitre}
+The Coding Methods
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**Principle**
+
+- Compares each label against a **suggester**: a ranked list of the most frequently annotated historical labels with their COICOP code
+- Returns the best match and its similarity score
+
+**Intuition** — *Query:* `"baguette"` (bread)
+
+| Suggester candidate | Code | LCSubstr distance |
+|---------------------|------|------------------|
+| baguette | `01.1.1.1` | 0.0 |
+| baguette en bois | `05.5.2` | 0.5 |
+
+→ Best match (lowest distance): `01.1.1.1`
+:::
+
+::: {.column width="45%"}
+**Method profile**
+
+| | LCSubstr |
+|---|---|
+| Input dependency | Suggester |
+| Process | No LLM, no GPU |
+| Speed | Fast (parallelised C) |
+| Quality signal | LCSubstr distance score (0–1) |
+
+**Output**: top-1 candidate code + score → feeds into LLM-as-Judge
+
+:::
+
+:::
+
+::: {.notes}
+The first ML method is LCSubstr similarity against a suggester — a ranked list of the most frequently annotated historical labels. We compute the LCSubstr distance in C with a parallelised, optimised implementation for performance at scale. The best match and its similarity score are passed downstream. The limit is novelty: a label with no close historical match will not be covered. That's where TTC and RAG come in.
+:::
+
+## Method 2 — TTC: embedding-based classifier {#section_2_3 .backgroundStandard_vert}
+
+:::{.enteteAvecTitre}
+The Coding Methods
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**Architecture**
+
+- Character n-gram tokenizer (3–6 grams) + 128-dim embedding — fastText-inspired
+- **Flat** variant: direct level 4 COICOP prediction
+- **Hierarchical** variant: cascade of 5 classifiers, one per COICOP level
+
+**Training data**
+
+- Pre-trained on **~3M scanner data labels** (point-of-sale data), completed with **LLM-generated synthetic labels** for underrepresented COICOP classes
+- Fine-tuned on **~10k BdF HBS annotations**
+:::
+
+::: {.column width="45%"}
+**Method profile**
+
+| | TTC |
+|---|---|
+| Input dependency | Labelled training data |
+| Process | GPU training — no LLM at inference |
+| Speed | Very fast (ms) |
+| Quality signal | Calibrated confidence score |
+
+**Output**: top-k predictions + confidence scores + word attributions
+
+:::
+
+:::
+
+::: {.notes}
+The TTC classifier is built on the torchTextClassifiers library — a fastText-inspired architecture using character n-gram embeddings. It tokenizes labels into 3 to 6 character grams, maps them through a 128-dimensional embedding layer, and predicts a COICOP code. The character-level representation makes it robust to the typos and abbreviations typical of survey data. It's served as a FastAPI service and produces calibrated confidence scores, which play a critical role in the LLM-as-Judge step.
+:::
+
+## Method 3 — RAG: semantic retrieval {#section_2_4 .backgroundStandard_vert}
+
+:::{.enteteAvecTitre}
+The Coding Methods
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**Principle**
+
+- Embed the product label → retrieve the **top-10** most semantically similar COICOP codes from a **Qdrant** vector DB
+- Inject candidates + their official COICOP notices into an LLM prompt → generate the predicted code (structured JSON)
+
+**Model choices** (deployed on vLLM)
+
+- **Embedding**: Qwen3-Embedding-8B (vector size 4096d)
+- **Generation**: Gemma4-26B-MoE (temperature 0.1), structured JSON output with reflection elements
+:::
+
+::: {.column width="45%"}
+
+**Method profile**
+
+| | RAG |
+|---|---|
+| Input dependency | COICOP classification descriptions |
+| Process | LLM + vector DB at inference |
+| Speed | Slower (LLM generation) |
+| Quality signal | LLM self-reported confidence |
+
+**Output**: predicted COICOP code (JSON) + LLM-assessed confidence score → feeds into LLM-as-Judge
+:::
+
+:::
+
+::: {.notes}
+The third method is RAG. Offline, we build a semantic index of all COICOP code descriptions using a large embedding model served by vLLM. At inference time, we embed the product label, retrieve the most semantically close COICOP codes from Qdrant, and inject them plus their official descriptions into a generation prompt. This handles labels that don't match any historical annotation but whose meaning is clear to a language model. The official COICOP notices — inclusion rules, exclusion rules, examples — are the same reference material a human expert would use.
+:::
+
+# 3. LLM-as-Judge {#chapters_3 .backgroundTitre_bleu}
+
+::: {.notes}
+Once we have three sets of predictions, we need to decide which one to trust. That's the LLM-as-Judge step — and it's where we also address cost and infrastructure.
+:::
+
+## Arbitrating between methods — intelligently {#section_3_1 .backgroundStandard_bleu}
+
+:::{.enteteAvecTitre}
+LLM-as-Judge
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**The arbitration step**
+
+- Receives predictions + scores from **LCS**, **TTC**, **RAG**
+- The LLM sees: the product label, the three candidates, and filtered COICOP notices
+- Selects the most appropriate code, or flags the label as unresolvable
+
+**Why LLM rather than majority vote?**
+
+Three methods with correlated errors → a vote can amplify them. The LLM uses the **label content** to break ties intelligently.
+:::
+
+::: {.column width="45%"}
+**Two cost-saving shortcuts**
+
+1. **Consensus short-circuit** — if all three methods agree *and* TTC confidence ≥ 0.90 → **no LLM call**, prediction accepted directly
+2. **Nomenclature filtering** — only the relevant COICOP sections are injected → **4–10× fewer tokens**
+
+**Structured output — JSON only**
+
+```json
+{ "codable": true, "coicop": "01.1.4.2",
+  "source": "rag", "confidence": 0.87 }
+```
+
+- `codable` — was the label sufficient?
+- `source` — which method won
+- `confidence` — LLM self-assessment
+:::
+
+:::
+
+::: {.notes}
+The LLM-as-Judge step receives the three predictions and arbitrates. Two shortcuts keep costs under control. First, the consensus short-circuit: if all three agree and TTC confidence is above 90%, we skip the LLM entirely. Second, nomenclature filtering: instead of injecting all 500 COICOP codes into every prompt, we filter to the relevant sections — cutting token counts by a factor of 4 to 10. The output is forced to be structured JSON for reliable parsing at scale.
+:::
+
+## MLOps: the production stack {#section_3_2 .backgroundStandard_bleu}
+
+:::{.enteteAvecTitre}
+LLM-as-Judge
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**SSPCloud** — INSEE's open data science platform, built on **Onyxia**, running on **Kubernetes**. Every component is a one-click managed service.
+
+**The 9-step DAG on Argo Workflows**
+
+```
+preprocessing ──┬──→ prune-coicop → create-vector-db ─┐
+                ├──→ codif-regex                        │
+                ├──→ codif-lcs ─────────────────────────┤→ decide-coicop → report
+                ├──→ run-rag ────────────────────────────┘
+                └──→ run-ttc
+```
+
+- Each step reads/writes **Parquet files on S3** (MinIO)
+- Fully parameterised: model, sample size, concurrency
+- **Auto-resume** — interrupted runs skip completed observations
+:::
+
+::: {.column width="45%"}
+::: {style="text-align: center; margin-top: 1em;"}
+![](img/logos/onyxia.svg){height=45px style="margin: 0 0.5em;"}
+![](img/logos/kubernetes.svg){height=45px style="margin: 0 0.5em;"}
+![](img/logos/argo.svg){height=45px style="margin: 0 0.5em;"}
+![](img/logos/vllm.png){height=45px style="margin: 0 0.5em;"}
+![](img/logos/langfuse.png){height=45px style="margin: 0 0.5em;"}
+![](img/logos/mlflow.svg){height=45px style="margin: 0 0.5em;"}
+![](img/logos/minio.svg){height=45px style="margin: 0 0.5em;"}
+:::
+
+| Component | Role |
+|-----------|------|
+| Argo Workflows | DAG orchestration |
+| vLLM | LLM inference & embeddings |
+| Qdrant | Vector database |
+| Langfuse | Prompt versioning |
+| MLflow | Experiment tracking |
+| MinIO | S3 storage |
+
+[Entirely open-source, containerised, reproducible.]{.bold}
+:::
+
+:::
+
+::: {.notes}
+SSPCloud is INSEE's data science platform, built on the open-source Onyxia project. Everything runs on Kubernetes. The pipeline is a 9-step DAG orchestrated by Argo Workflows. Each step is containerised and independently versioned. Data flows via Parquet files on S3-compatible MinIO storage. vLLM serves both the embedding model and the generative LLM. Langfuse versions prompts and traces experiments. MLflow tracks evaluation metrics. The auto-resume capability means interrupted runs don't lose work.
+:::
+
+## Results {#section_3_3 .backgroundStandard_bleu}
+
+:::{.enteteAvecTitre}
+LLM-as-Judge
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**Coverage breakdown**
+
+| Method | Share of observations |
+|--------|-----------------------|
+| Regex (early exit) | ~[XX] % |
+| Consensus shortcut (no LLM) | ~[XX] % |
+| LLM arbitration | ~[XX] % |
+| Flagged for expert review | ~[XX] % |
+
+*[Figures to be updated — auto-generated by the Quarto report step at each run]*
+
+**Accuracy**
+
+| Level | Accuracy |
+|-------|----------|
+| COICOP level 4 (4-digit) | ~[XX] % |
+| COICOP level 5 (sub-class) | ~[XX] % |
+:::
+
+::: {.column width="45%"}
+**Key observations**
+
+- The **ensemble outperforms any single method** in isolation
+- The **consensus shortcut** handles a large share of observations at zero LLM cost — without accuracy loss
+- Accuracy varies across COICOP divisions — Food (01) best covered; Restaurants (11) most challenging
+
+**Automatic reporting**
+
+At each run, a **Quarto HTML report** with breakdowns by:
+
+- COICOP levels 1–5
+- Shop type
+- Household budget quartile
+
+[Results fully reproducible, refreshed at every pipeline run.]{.bold}
+:::
+
+:::
+
+::: {.notes}
+The key finding is that the hybrid ensemble outperforms any single method. The consensus shortcut reduces LLM calls significantly while preserving accuracy on agreed cases. Coverage varies across COICOP divisions: food products are well-covered by historical annotations; newer product categories and restaurant expenditures are harder. Detailed breakdowns are produced automatically by the Quarto reporting step.
+:::
+
+# 4. Conclusion {#chapters_4 .backgroundTitre_bleu}
+
+::: {.notes}
+Let me close with the limits, opportunities, and conclusion.
+:::
+
+## Limits & Opportunities {#section_4_1 .backgroundStandard_bleu}
+
+:::{.enteteAvecTitre}
+Conclusion
+:::
+
+::: {.columns}
+
+::: {.column width="50%"}
+**Current limits**
+
+- Accuracy **uneven across COICOP divisions** — divisions with sparse historical coverage (new products, revised collection mode) need domain-specific improvements
+- LLM **self-reported confidence is not a reliable filter** on its own — distributions of correct and incorrect predictions overlap, calibration ongoing
+- RAG retriever quality is the main bottleneck for hard cases — better embeddings and reranking needed
+- **Legacy errors propagate**: if past annotations were wrong, LCS inherits the mistake
+:::
+
+::: {.column width="50%"}
+**Opportunities**
+
+- **Active learning loop** — route low-confidence predictions to the single expert annotator for targeted feedback; re-train TTC iteratively
+- **Improved RAG** — hierarchy-aware retrieval, reranker, larger embedding model
+- **Generalisation** — the pipeline design is classification-agnostic; direct reuse for NACE (business registers), ISCO (occupations), SPC (civil servants)
+- **EU harmonisation** — methodology transferable to other National Statistical Institutes running the HBS
+- **Feedback loop from production** — each coding decision enriches the annotation corpus for future waves
+:::
+
+:::
+
+::: {.notes}
+The main limits are accuracy heterogeneity across COICOP divisions — divisions with sparse historical data are harder — and the unreliability of LLM self-reported confidence as a standalone filter. The opportunities are significant: an active learning loop with the expert annotator, improved retrieval, and direct reuse of the approach for other classifications and other NSIs.
+:::
+
+## Conclusion {#section_4_2 .backgroundStandard_bleu}
+
+:::{.enteteAvecTitre}
+Conclusion
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**A hybrid, production-ready pipeline**
+
+- **Rule-based pre-filter** handles high-confidence, easy cases at zero ML cost
+- **Three complementary ML methods** (LCS, TTC, RAG) cover different failure modes — no single method dominates
+- **LLM-as-Judge** arbitrates intelligently, with a consensus shortcut and 4–10× token reduction keeping inference costs manageable
+- **Fully open-source MLOps** on SSPCloud — Argo, vLLM, Qdrant, Langfuse, MLflow
+- **6-month deadline met** with automatic Quarto reporting at every run
+:::
+
+::: {.column width="45%"}
+**The broader message**
+
+Product and activity coding is a recurring bottleneck across official statistics — one that traditional rule-based systems can no longer handle at scale.
+
+An ensemble of complementary methods, arbitrated by an LLM with production-grade safeguards, offers a viable path forward — not just for BdF/COICOP, but for any survey facing the same constraint.
+
+::: {.fragment .fade-in style="margin-top: 1.5em;"}
+[Replicate the expertise of 7 annotators automatically. Build it in 6 months. Make it reproducible.]{.bold}
+:::
+:::
+
+:::
+
+::: {.notes}
+To conclude. We built a hybrid pipeline combining regex, LCS, TTC, and RAG under an LLM-as-Judge arbitration layer. The cost-saving shortcuts make it economically viable at production scale. The 6-month deadline was met. The broader message is that this approach is transferable — to other classifications, other surveys, other NSIs facing the same tension between volume and available expertise.
+
+Thank you for your attention.
+:::
+
+## {#pageDeFin data-menu-title="Final page" .unnumbered .backgroundPageFinale}
+
+:::: {.columns .coordonneesFinales}
+
+::: {.column .gauche .coordonnees width=30%}
+- Laura GAIMARD
+- Data Scientist
+- [Directorate of statistical methodology]{.ligneBlancheApres}
+- [Insee — France]{.ligneBlancheApres}
+- laura.gaimard@insee.fr
+:::
+
+::: {.column .coordonnees .milieu width=30%}
+
+:::
+
+::: {.column .coordonnees .droite width=30%}
+
+:::
+
+::::
+
+::: {.notes}
+Thank you for your attention. Happy to take questions.
+:::
