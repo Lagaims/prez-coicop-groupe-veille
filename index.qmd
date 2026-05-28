@@ -342,21 +342,12 @@ LLM-as-Judge
 ::: {.columns}
 
 ::: {.column width="55%"}
-**SSPCloud** — INSEE's open data science platform, built on **Onyxia**, running on **Kubernetes**. Every component is a one-click managed service.
+**SSPCloud** — INSEE's open data science platform, built on **Onyxia**, running on **Kubernetes**.
 
-**The 9-step DAG on Argo Workflows**
-
-```
-preprocessing ──┬──→ prune-coicop → create-vector-db ─┐
-                ├──→ codif-regex                        │
-                ├──→ codif-lcs ─────────────────────────┤→ decide-coicop → report
-                ├──→ run-rag ────────────────────────────┘
-                └──→ run-ttc
-```
+**Argo Workflows sequences the 9 pipeline steps — running the three methods in parallel, then feeding results into the LLM-as-Judge**
 
 - Each step reads/writes **Parquet files on S3** (MinIO)
-- Fully parameterised: model, sample size, concurrency
-- **Auto-resume** — interrupted runs skip completed observations
+
 :::
 
 ::: {.column width="45%"}
@@ -379,7 +370,6 @@ preprocessing ──┬──→ prune-coicop → create-vector-db ─┐
 | MLflow | Experiment tracking |
 | MinIO | S3 storage |
 
-[Entirely open-source, containerised, reproducible.]{.bold}
 :::
 
 :::
