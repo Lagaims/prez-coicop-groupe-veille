@@ -76,7 +76,7 @@ Volumes have grown; expert teams have shrunk.
 COICOP — Classification of Individual Consumption by Purpose — is the international standard for classifying household expenditures. It's hierarchical: 12 top-level divisions, subdivided into groups, classes, and sub-classes. About 500 active leaf codes. Assigning a code requires understanding both what the product is and what it's used for — a pure string match is not enough. The same challenge exists across official statistics: NACE for businesses, ISCO for occupations. The approach we present here was built for COICOP but designed with generalisability in mind.
 :::
 
-## The 2026 BdF wave: a perfect storm {#section_1_1 .backgroundStandard_violet}
+## The 2026 HBS wave: a perfect storm {#section_1_1 .backgroundStandard_violet}
 
 :::{.enteteAvecTitre}
 Context
@@ -326,17 +326,6 @@ Three methods with correlated errors → a vote can amplify them. The LLM uses t
 1. **Consensus short-circuit** — if all three methods agree *and* TTC confidence ≥ 0.90 → **no LLM call**, prediction accepted directly
 2. **Nomenclature filtering** — only the relevant COICOP sections are injected → **4–10× fewer tokens**
 
-**Structured output — JSON only**
-
-```json
-{ "codable": true, "coicop": "01.1.4.2",
-  "source": "rag", "confidence": 0.87 }
-```
-
-- `codable` — was the label sufficient?
-- `source` — which method won
-- `confidence` — LLM self-assessment
-:::
 
 :::
 
