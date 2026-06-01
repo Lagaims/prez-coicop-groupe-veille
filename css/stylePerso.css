@@ -1,5 +1,19 @@
 /**********************CSS PERSONNALISE****************************/
 
+/* Force uniform borders on all table rows (remove odd/even alternation) */
+.reveal .table-all-borders table tr.odd,
+.reveal .table-all-borders table tr.even {
+  background-color: transparent !important;
+}
+.reveal .table-all-borders table td,
+.reveal .table-all-borders table th {
+  border-bottom: 1px solid currentColor !important;
+}
+.reveal .table-all-borders table tbody tr:last-child td,
+.reveal .table-all-borders table tbody tr:last-child th {
+  border-bottom: none !important;
+}
+
 /*.reveal section {
   border: 5px solid black;
 }*/

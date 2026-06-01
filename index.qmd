@@ -43,13 +43,13 @@ Context
 **Classification of Individual Consumption by Purpose**
 
 - International standard — backbone of **CPI computation** across EU member states
-- Hierarchical: division → group → class → sub-class (~500 leaf codes)
+- Hierarchical: division → group → class → sub-class (~500 codes at level 5)
 - Assigning a code requires understanding both the **product** and its **purpose**
 
 | Level | Example |
 |-------|---------|
-| Division | `01` — Food |
-| Sub-class | `01.1.1.1` — Rice |
+| 1 - Division | `01` — Food |
+| 4 - Sub-class | `01.1.1.1` — Rice |
 :::
 
 ::: {.column width="45%"}
@@ -122,7 +122,7 @@ Context
 ::: {.column width="50%"}
 **Classification**
 
-- ~900 granular COICOP classes, distributed in five hierarchical levels
+- ~900 granular COICOP classes (all levels), distributed in five hierarchical levels
 - COICOP classes updated since the last wave
 
 **Labels**
@@ -366,7 +366,7 @@ LLM-as-Judge
 
 | Component | Role |
 |-----------|------|
-| Argo Workflows | DAG orchestration |
+| Argo Workflows | jobs orchestration |
 | vLLM | LLM inference & embeddings |
 | Qdrant | Vector database |
 | Langfuse | Prompt versioning |
@@ -389,51 +389,38 @@ LLM-as-Judge
 
 ::: {.columns}
 
-::: {.column width="55%"}
-**Coverage breakdown** *(pipeline run 2026-05-19, n = 8 033)*
+::: {.column width="45%"}
 
-| Method | Share |
-|--------|------:|
-| Regex (early exit) | 5% |
-| Consensus shortcut (no LLM call) | 7% |
-| LLM-as-Judge arbitration | 85% |
+| Pipeline coding stage | Coverage |
+|----------------------|---------:|
+| **Step 1 — Regex** | |
+| &emsp; Regex pattern | 8% |
+| &emsp; Manual review flagged | 1% |
+| **Step 2 — Three methods** | |
+| &emsp; Consensus shortcut (no LLM call) | 7% |
+| **Step 3 — LLM-as-Judge** | |
+| &emsp; LLM-as-Judge arbitration | 84% |
+| &emsp; *↳ of which: flagged for expert review* | *3.5%* |
 
-Of LLM-arbitrated cases, **3.5% flagged for expert review** (LLM confidence ≤ 3/5).
-
-**Accuracy** *(LLM-as-Judge output vs manual annotation)*
-
-| Level | Accuracy |
-|-------|----------|
-| COICOP level 1 | 90.0% |
-| COICOP level 2 | 88.7% |
-| COICOP level 3 | 84.9% |
-| COICOP level 4 | 82.6% |
-| COICOP level 5 | 79.4% |
 :::
 
-::: {.column width="45%"}
-**Key observations**
+::: {.column width="55%"}
+**Accuracy** *(~8,000 annotated labels, 1 annotator)*
 
-- The **TTC classifier drives 72%** of final codes; RAG and LLM-only cover the hard cases
-- **Consensus shortcut** (7% of obs) reaches 88% exact accuracy at zero LLM cost
-- **RAG and LLM-only** cases score ~33% exact — these are the hardest, most ambiguous labels where all methods diverge
-- Accuracy drops across levels: –13 pp from L1 → exact match
+- **Human baseline: ~90% at L5** *(with internet access)*
+- **Pipeline predictions** *(no external lookup)*:
+  - **L1** : consumption baskets (CPI) → LCS: 67.5% / RAG: 82.7% / TTC: 87.6% / **Pipeline: 90.0%**
+  - **L4** : delivered to the HBS team → LCS: 47.1% / RAG: 65.5% / TTC: 81.1% / **Pipeline: 82.6%**
+  - **L5** : Eurostat standard *(TTC & RAG stop at L4)* → **Pipeline only: 79.4%**
 
-**Automatic reporting**
+*Accuracy likely **underestimated**: ~10% of test labels contain annotation errors.*
 
-At each run, a **Quarto HTML report** with breakdowns by:
-
-- COICOP levels 1–5
-- Shop type
-- Household budget quartile
-
-[Results fully reproducible, refreshed at every pipeline run.]{.bold}
 :::
 
 :::
 
 ::: {.notes}
-The key finding is that the hybrid ensemble outperforms any single method. The consensus shortcut reduces LLM calls significantly while preserving accuracy on agreed cases. Coverage varies across COICOP divisions: food products are well-covered by historical annotations; newer product categories and restaurant expenditures are harder. Detailed breakdowns are produced automatically by the Quarto reporting step.
+The key finding is that the hybrid ensemble outperforms any single method. The ~10pp gap between human (90%) and pipeline (79.4%) at level 5 is partly explained by context asymmetry: human annotators can search the web, while the pipeline runs on an internal server with no external access. Accuracy figures are also conservative — roughly 10% of the test set annotations contain errors, so the pipeline's true accuracy is likely higher. The consensus shortcut reduces LLM calls significantly while preserving accuracy on agreed cases.
 :::
 
 # 4. Conclusion {#chapters_4 .backgroundTitre_bleu}
@@ -442,7 +429,7 @@ The key finding is that the hybrid ensemble outperforms any single method. The c
 Let me close with the limits, opportunities, and conclusion.
 :::
 
-## Limits & Opportunities {#section_4_1 .backgroundStandard_bleu}
+## Limits & Improvements {#section_4_1 .backgroundStandard_bleu}
 
 :::{.enteteAvecTitre}
 Conclusion
@@ -453,20 +440,22 @@ Conclusion
 ::: {.column width="50%"}
 **Current limits**
 
-- Accuracy **uneven across COICOP divisions** — divisions with sparse historical coverage (new products, revised collection mode) need domain-specific improvements
-- LLM **self-reported confidence is not a reliable filter** on its own — distributions of correct and incorrect predictions overlap, calibration ongoing
-- RAG retriever quality is the main bottleneck for hard cases — better embeddings and reranking needed
-- **Legacy errors propagate**: if past annotations were wrong, LCS inherits the mistake
+- Strong dependency on the **quantity and quality of annotated data**:
+  - **Collecting 3M annotated labels** for TTC training — high effort, hard to scale
+  - Accuracy **underestimated** — ~10% error rate in manual annotations inflates apparent errors
+  - **Sparse coverage** for some COICOP divisions (level 1)
+- Lack of **confidence indicators** to target **manual review** effectively
+- Deployment challenges (**GPU requirements**)
 :::
 
 ::: {.column width="50%"}
-**Opportunities**
+**Improvements**
 
-- **Active learning loop** — route low-confidence predictions to the single expert annotator for targeted feedback; re-train TTC iteratively
-- **Improved RAG** — hierarchy-aware retrieval, reranker, larger embedding model
-- **Generalisation** — the pipeline design is classification-agnostic; direct reuse for NACE (business registers), ISCO (occupations), SPC (civil servants)
-- **EU harmonisation** — methodology transferable to other National Statistical Institutes running the HBS
-- **Feedback loop from production** — each coding decision enriches the annotation corpus for future waves
+- Add additional inputs from **2017 HBS labels**
+- Improve the **LCS suggester** with richer (product, code) pair context
+- Improve the **TTC model** with a **receipt-specific tokenizer**
+- Log all **RAG traces** in **Langfuse**, not just prompt versioning
+- **Benchmark** all methods against manual annotations using **LLM-as-Judge**
 :::
 
 :::
@@ -490,7 +479,6 @@ Conclusion
 - **Three complementary ML methods** (LCS, TTC, RAG) cover different failure modes — no single method dominates
 - **LLM-as-Judge** arbitrates intelligently, with a consensus shortcut and 4–10× token reduction keeping inference costs manageable
 - **Fully open-source MLOps** on SSPCloud — Argo, vLLM, Qdrant, Langfuse, MLflow
-- **6-month deadline met** with automatic Quarto reporting at every run
 :::
 
 ::: {.column width="45%"}
@@ -498,7 +486,7 @@ Conclusion
 
 Product and activity coding is a recurring bottleneck across official statistics — one that traditional rule-based systems can no longer handle at scale.
 
-An ensemble of complementary methods, arbitrated by an LLM with production-grade safeguards, offers a viable path forward — not just for BdF/COICOP, but for any survey facing the same constraint.
+An ensemble of complementary methods, arbitrated by an LLM with production-grade safeguards, offers a viable path forward — not just for COICOP, but for **any survey facing the same constraint**. TTC can be retrained for any language with an annotated dataset — that portability is by design in the TTC framework.
 
 ::: {.fragment .fade-in style="margin-top: 1.5em;"}
 [Replicate the expertise of 7 annotators automatically. Build it in 6 months. Make it reproducible.]{.bold}
