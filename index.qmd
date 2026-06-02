@@ -398,8 +398,8 @@ Conclusion
 **Current limits**
 
 - Strong dependency on the **quantity and quality of annotated data**:
-  - **Collecting 3M annotated labels** for TTC training — high effort, hard to scale
-  - Accuracy **underestimated** — ~10% error rate in manual annotations inflates apparent errors
+  - **Collecting 3M annotated labels** for TTC training : high effort, hard to scale
+  - Accuracy **underestimated** : ~10% error rate in manual annotations inflates apparent errors
   - **Sparse coverage** for some COICOP divisions (level 1)
 - Lack of **confidence indicators** to target **manual review** effectively
 - Deployment challenges (**GPU requirements**)
