@@ -86,7 +86,7 @@ Context
 
 **Labels**
 
-- Heterogeneous textual inputs — format and verbosity vary widely across sources
+- Heterogeneous textual inputs : format and words used change across sources
 - Generic, ambiguous, or uninformative (*"various food"*, *"article"*)
 - Same string can map to different codes depending on context
 
@@ -101,7 +101,7 @@ Context
 
 **Tools**
 
-- No GPU available on production servers → lightweight inference required
+- No GPU available on production servers
 :::
 
 :::
@@ -142,7 +142,7 @@ The Coding Methods
 - Compares each label against a **suggester**: a curated list of reliably coded labels with their validated COICOP code
 - Returns the best match and its similarity score
 
-**Intuition** — *Query:* `"baguette"` (bread)
+**Example** - *Query:* `"baguette"` (bread)
 
 | Suggester candidate | Code | LCSubstr distance |
 |---------------------|------|------------------|
@@ -185,12 +185,12 @@ The Coding Methods
 
 - Character n-gram tokenizer (3–6 grams) + 128-dim embedding (fastText-inspired)
 - **Flat** variant: direct level 4 COICOP prediction
-- **Hierarchical** variant: cascade of 5 classifiers, one per COICOP level
+- **Hierarchical** variant: cascade of 4 classifiers, one per COICOP level
 
 **Training data**
 
 - Pre-trained on **~3M scanner data labels** (point-of-sale data), completed with **LLM-generated synthetic labels** for underrepresented COICOP classes
-- Fine-tuned on **~10k BdF HBS annotations**
+- Fine-tuned on **~10k HBS annotations**
 :::
 
 ::: {.column width="45%"}
@@ -306,7 +306,7 @@ LLM-as-Judge
 
 - Argo Workflows sequences the 9 pipeline steps, running the three methods in parallel, then feeding results into the LLM-as-Judge
 
-- Each step reads/writes **Parquet files on S3** (MinIO)
+- Each step reads/writes **Parquet files on S3**
 
 - LLMs are served via **vLLM** and exposed through an internal LLM platform providing an OpenAI-compatible API, connected to SSPCloud.
 
@@ -320,7 +320,6 @@ LLM-as-Judge
 ![](img/logos/vllm.png){height=45px style="margin: 0 0.5em;"}
 ![](img/logos/langfuse.png){height=45px style="margin: 0 0.5em;"}
 ![](img/logos/mlflow.svg){height=45px style="margin: 0 0.5em;"}
-![](img/logos/minio.svg){height=45px style="margin: 0 0.5em;"}
 :::
 
 | Component | Role |
@@ -330,7 +329,6 @@ LLM-as-Judge
 | Qdrant | Vector database |
 | Langfuse | Prompt versioning |
 | MLflow | Experiment tracking |
-| MinIO | S3 storage |
 
 :::
 
