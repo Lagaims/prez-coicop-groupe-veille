@@ -27,7 +27,7 @@ editor:
 
 # 1. Context {#chapters_1 .backgroundTitre_violet}
 
-## Few context elements {#section_1_1 .backgroundStandard_violet}
+## Some context elements {#section_1_1 .backgroundStandard_violet}
 
 :::{.enteteAvecTitre}
 Context
@@ -39,7 +39,7 @@ Context
 
 **COICOP : Classification of Individual Consumption by Purpose**
 
-- Hierarchical classification : on 5 levels (we code at level 4)
+- Hierarchical classification : on 5 levels → **we code at level 4**
 - Assigning a code requires understanding both the **product** and its **purpose**
 
 | Level | Example |
