@@ -128,7 +128,7 @@ The Coding Methods
 Here's the overall pipeline. Raw product labels first pass through a rule-based pre-filter. Those that aren't caught are processed by three independent methods in parallel: LCS, TTC, and RAG. A final LLM-as-Judge step arbitrates between the three predictions. The pipeline runs as a DAG on Argo Workflows on the SSPCloud Kubernetes cluster, with data flowing via Parquet files on S3.
 :::
 
-## Method 1 — LCSubstr: leveraging historical annotations {#section_2_2 .backgroundStandard_vert}
+## Method 1 - LCSubstr: leveraging historical annotations {#section_2_2 .backgroundStandard_vert}
 
 :::{.enteteAvecTitre}
 The Coding Methods
@@ -142,6 +142,10 @@ The Coding Methods
 - Compares each label against a **suggester**: a curated list of reliably coded labels with their validated COICOP code
 - Returns the best match and its similarity score
 
+:::
+
+::: {.column width="45%"}
+
 **Example** - *Query:* `"baguette"` (bread)
 
 | Suggester candidate | Code | LCSubstr distance |
@@ -150,19 +154,9 @@ The Coding Methods
 | baguette en bois | `05.5.2` | 0.5 |
 
 → Best match (lowest distance): `01.1.1.1`
-:::
 
-::: {.column width="45%"}
-**Method profile**
 
-| | LCSubstr |
-|---|---|
-| Input dependency | Suggester |
-| Process | No LLM, no GPU |
-| Speed | Fast (parallelised C) |
-| Quality signal | LCSubstr distance score (0–1) |
-
-**Output**: top-1 candidate code + score → feeds into LLM-as-Judge
+**Output**: top-1 candidate code + LCSubstr distance
 
 :::
 
@@ -172,7 +166,7 @@ The Coding Methods
 The first ML method is LCSubstr similarity against a suggester — a ranked list of the most frequently annotated historical labels. We compute the LCSubstr distance in C with a parallelised, optimised implementation for performance at scale. The best match and its similarity score are passed downstream. The limit is novelty: a label with no close historical match will not be covered. That's where TTC and RAG come in.
 :::
 
-## Method 2 — TTC: embedding-based classifier {#section_2_3 .backgroundStandard_vert}
+## Method 2 - TTC: embedding-based classifier {#section_2_3 .backgroundStandard_vert}
 
 :::{.enteteAvecTitre}
 The Coding Methods
@@ -183,25 +177,18 @@ The Coding Methods
 ::: {.column width="55%"}
 **torchText Classifiers : Architecture**
 
-- Character n-gram tokenizer (3–6 grams) + 128-dim embedding (fastText-inspired)
+- Inspired by fastText
+- Character n-gram tokenizer (3–6 grams) + 128-dim embedding
 - **Flat** variant: direct level 4 COICOP prediction
 - **Hierarchical** variant: cascade of 4 classifiers, one per COICOP level
 
+:::
+
+::: {.column width="45%"}
 **Training data**
 
 - Pre-trained on **~3M scanner data labels** (point-of-sale data), completed with **LLM-generated synthetic labels** for underrepresented COICOP classes
 - Fine-tuned on **~10k HBS annotations**
-:::
-
-::: {.column width="45%"}
-**Method profile**
-
-| | TTC |
-|---|---|
-| Input dependency | Labelled training data |
-| Process | GPU training / no LLM at inference |
-| Speed | Very fast (ms) |
-| Quality signal | Calibrated confidence score |
 
 **Output**: top-k predictions + confidence scores + word attributions
 
@@ -213,7 +200,7 @@ The Coding Methods
 The TTC classifier is built on the torchTextClassifiers library — a fastText-inspired architecture using character n-gram embeddings. It tokenizes labels into 3 to 6 character grams, maps them through a 128-dimensional embedding layer, and predicts a COICOP code. The character-level representation makes it robust to the typos and abbreviations typical of survey data. It's served as a FastAPI service and produces calibrated confidence scores, which play a critical role in the LLM-as-Judge step.
 :::
 
-## Method 3 — RAG: semantic retrieval {#section_2_4 .backgroundStandard_vert}
+## Method 3 - RAG: semantic retrieval {#section_2_4 .backgroundStandard_vert}
 
 :::{.enteteAvecTitre}
 The Coding Methods
@@ -227,30 +214,43 @@ The Coding Methods
 - Embed the product label → retrieve the **top-10** most semantically similar COICOP codes from a **Qdrant** vector DB
 - Inject candidates + their official COICOP notices into an LLM prompt → generate the predicted code (structured JSON)
 
+:::
+
+::: {.column width="45%"}
 **Model choices** (deployed on vLLM)
 
 - **Embedding**: Qwen3-Embedding-8B (vector size 4096d)
 - **Generation**: Gemma4-26B-MoE (temperature 0.1), structured JSON output with reflection elements
-:::
 
-::: {.column width="45%"}
-
-**Method profile**
-
-| | RAG |
-|---|---|
-| Input dependency | COICOP classification descriptions |
-| Process | LLM + vector DB at inference |
-| Speed | Slower (LLM generation) |
-| Quality signal | LLM self-reported confidence |
-
-**Output**: predicted COICOP code (JSON) + LLM-assessed confidence score → feeds into LLM-as-Judge
+**Output**: predicted COICOP code (JSON) + LLM self-confidence score
 :::
 
 :::
 
 ::: {.notes}
 The third method is RAG. Offline, we build a semantic index of all COICOP code descriptions using a large embedding model served by vLLM. At inference time, we embed the product label, retrieve the most semantically close COICOP codes from Qdrant, and inject them plus their official descriptions into a generation prompt. This handles labels that don't match any historical annotation but whose meaning is clear to a language model. The official COICOP notices — inclusion rules, exclusion rules, examples — are the same reference material a human expert would use.
+:::
+
+## Methods comparison {#section_2_5 .backgroundStandard_vert}
+
+:::{.enteteAvecTitre}
+The Coding Methods
+:::
+
+:::{.table-all-borders}
+| | **LCSubstr** | **TTC** | **RAG** |
+|---|---|---|---|
+| Annotation burden | [**Low**]{style="color: #e67e22;"} | [**High**]{style="color: #c0392b;"} | [**None**]{style="color: #27ae60;"} |
+| Process | [**No LLM, no GPU**]{style="color: #27ae60;"} | [**GPU training / no LLM at inference**]{style="color: #e67e22;"} | [**LLM + vector DB at inference**]{style="color: #e67e22;"} |
+| Speed | [**Fast (parallelised C)**]{style="color: #27ae60;"} | [**Slow training / Fast at inference**]{style="color: #e67e22;"} | [**Slower (LLM generation)**]{style="color: #c0392b;"} |
+| Quality signal | [**LCSubstr distance (0–1)**]{style="color: #e67e22;"} | [**Calibrated confidence score**]{style="color: #27ae60;"} | [**LLM self-reported confidence**]{style="color: #c0392b;"} |
+| Explainability | [**Common substring**]{style="color: #27ae60;"} | [**Word attributions**]{style="color: #27ae60;"} | [**LLM self-reporting**]{style="color: #e67e22;"} |
+| Accuracy L1 | [**67.5%**]{style="color: #c0392b;"} | [**87.6%**]{style="color: #27ae60;"} | [**82.7%**]{style="color: #e67e22;"} |
+| Accuracy L4 | [**47.1%**]{style="color: #c0392b;"} | [**81.1%**]{style="color: #27ae60;"} | [**65.5%**]{style="color: #e67e22;"} |
+:::
+
+::: {.notes}
+Each method has a distinct profile. LCS is fast and reliable when the label closely matches a known coded label, but fails on novel inputs. TTC is the strongest individual classifier, reaching 87.6% at L1 and 81.1% at L4, with no LLM at inference. RAG handles semantically new labels by leveraging COICOP descriptions, but depends on LLM generation at inference time. The LLM-as-Judge combines all three.
 :::
 
 # 3. LLM-as-Judge {#chapters_3 .backgroundTitre_bleu}
