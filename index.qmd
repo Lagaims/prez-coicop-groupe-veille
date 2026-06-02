@@ -57,7 +57,6 @@ Context
 - ~**70,000 distinct free-text labels** to code into COICOP
 
 - New collection modes: smartphone, receipts, paper
-- Former rule-based system **obsolete**
 - COICOP updated since 2017 → **limited reuse** of past labels
 - Annotation team: **7 people → 1**
 
@@ -82,11 +81,11 @@ Context
 ::: {.column width="50%"}
 **Classification**
 
-- ~900 granular COICOP classes (all levels), distributed in five hierarchical levels
+- ~900 granular COICOP classes (all 5 levels)
 
 **Labels**
 
-- Heterogeneous textual inputs : format and words used change across sources
+- Heterogeneous textual inputs across sources
 - Generic, ambiguous, or uninformative (*"various food"*, *"article"*)
 - Same string can map to different codes depending on context
 
@@ -96,7 +95,7 @@ Context
 
 **Annotation**
 
-- Few annotated labels available for the new version (few human resources)
+- Few annotated labels available (fewer human resources)
 - Limited and unevenly distributed labelled data across COICOP divisions
 
 **Tools**
@@ -126,6 +125,51 @@ The Coding Methods
 
 ::: {.notes}
 Here's the overall pipeline. Raw product labels first pass through a rule-based pre-filter. Those that aren't caught are processed by three independent methods in parallel: LCS, TTC, and RAG. A final LLM-as-Judge step arbitrates between the three predictions. The pipeline runs as a DAG on Argo Workflows on the SSPCloud Kubernetes cluster, with data flowing via Parquet files on S3.
+:::
+
+## MLOps: the production stack {#section_3_2 .backgroundStandard_bleu}
+
+:::{.enteteAvecTitre}
+LLM-as-Judge
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**SSPCloud** : INSEE's open data science platform, built on **Onyxia**, running on **Kubernetes**.
+
+- Argo Workflows sequences the 9 pipeline steps, running the three methods in parallel, then feeding results into the LLM-as-Judge
+
+- Each step reads/writes **Parquet files on S3**
+
+- LLMs are served via **vLLM** and exposed through an internal LLM platform providing an OpenAI-compatible API, connected to SSPCloud.
+
+:::
+
+::: {.column width="45%"}
+::: {style="text-align: center; margin-top: 1em;"}
+![](img/logos/onyxia.svg){height=45px style="margin: 0 0.5em;"}
+![](img/logos/kubernetes.svg){height=45px style="margin: 0 0.5em;"}
+![](img/logos/argo.svg){height=45px style="margin: 0 0.5em;"}
+![](img/logos/vllm.png){height=45px style="margin: 0 0.5em;"}
+![](img/logos/langfuse.png){height=45px style="margin: 0 0.5em;"}
+![](img/logos/mlflow.svg){height=45px style="margin: 0 0.5em;"}
+:::
+
+| Component | Role |
+|-----------|------|
+| Argo Workflows | jobs orchestration |
+| vLLM | LLM inference & embeddings |
+| Qdrant | Vector database |
+| Langfuse | Prompt versioning |
+| MLflow | Experiment tracking |
+
+:::
+
+:::
+
+::: {.notes}
+SSPCloud is INSEE's data science platform, built on the open-source Onyxia project. Everything runs on Kubernetes. The pipeline is a 9-step DAG orchestrated by Argo Workflows. Each step is containerised and independently versioned. Data flows via Parquet files on S3-compatible MinIO storage. vLLM serves both the embedding model and the generative LLM. Langfuse versions prompts and traces experiments. MLflow tracks evaluation metrics. The auto-resume capability means interrupted runs don't lose work.
 :::
 
 ## Method 1 - LCSubstr: leveraging historical annotations {#section_2_2 .backgroundStandard_vert}
@@ -293,51 +337,6 @@ A vote counts voices / the LLM **weights quality signals** (confidence, distance
 The LLM-as-Judge step receives the three predictions and arbitrates. Two shortcuts keep costs under control. First, the consensus short-circuit: if all three agree and TTC confidence is above 90%, we skip the LLM entirely. Second, nomenclature filtering: instead of injecting all ~700 COICOP codes into every prompt, we filter to the relevant sections — cutting token counts by a factor of 4 to 10. The output is forced to be structured JSON for reliable parsing at scale.
 :::
 
-## MLOps: the production stack {#section_3_2 .backgroundStandard_bleu}
-
-:::{.enteteAvecTitre}
-LLM-as-Judge
-:::
-
-::: {.columns}
-
-::: {.column width="55%"}
-**SSPCloud** : INSEE's open data science platform, built on **Onyxia**, running on **Kubernetes**.
-
-- Argo Workflows sequences the 9 pipeline steps, running the three methods in parallel, then feeding results into the LLM-as-Judge
-
-- Each step reads/writes **Parquet files on S3**
-
-- LLMs are served via **vLLM** and exposed through an internal LLM platform providing an OpenAI-compatible API, connected to SSPCloud.
-
-:::
-
-::: {.column width="45%"}
-::: {style="text-align: center; margin-top: 1em;"}
-![](img/logos/onyxia.svg){height=45px style="margin: 0 0.5em;"}
-![](img/logos/kubernetes.svg){height=45px style="margin: 0 0.5em;"}
-![](img/logos/argo.svg){height=45px style="margin: 0 0.5em;"}
-![](img/logos/vllm.png){height=45px style="margin: 0 0.5em;"}
-![](img/logos/langfuse.png){height=45px style="margin: 0 0.5em;"}
-![](img/logos/mlflow.svg){height=45px style="margin: 0 0.5em;"}
-:::
-
-| Component | Role |
-|-----------|------|
-| Argo Workflows | jobs orchestration |
-| vLLM | LLM inference & embeddings |
-| Qdrant | Vector database |
-| Langfuse | Prompt versioning |
-| MLflow | Experiment tracking |
-
-:::
-
-:::
-
-::: {.notes}
-SSPCloud is INSEE's data science platform, built on the open-source Onyxia project. Everything runs on Kubernetes. The pipeline is a 9-step DAG orchestrated by Argo Workflows. Each step is containerised and independently versioned. Data flows via Parquet files on S3-compatible MinIO storage. vLLM serves both the embedding model and the generative LLM. Langfuse versions prompts and traces experiments. MLflow tracks evaluation metrics. The auto-resume capability means interrupted runs don't lose work.
-:::
-
 ## Results {#section_3_3 .backgroundStandard_bleu}
 
 :::{.enteteAvecTitre}
@@ -428,21 +427,21 @@ Conclusion
 
 ::: {.columns}
 
-::: {.column width="55%"}
+::: {.column width="50%"}
 **A hybrid, production-ready pipeline**
 
 - **Rule-based pre-filter** handles high-confidence, easy cases at zero ML cost
-- **Three complementary ML methods** (LCS, TTC, RAG) cover different failure modes : each contributes where others fall short
-- **LLM-as-Judge** arbitrates intelligently, with a consensus shortcut
-- **Fully open-source MLOps** on SSPCloud with these tools : Argo, vLLM, Qdrant, Langfuse, MLflow
+- **Three different coding methods** : LCS, TTC, RAG
+- **LLM-as-Judge** arbitrates intelligently between them
+- **Fully open-source MLOps** on SSPCloud
 :::
 
-::: {.column width="45%"}
+::: {.column width="50%"}
 **The key message**
 
-Product and activity coding is a recurring bottleneck across official statistics, one that traditional rule-based systems can no longer handle at scale.
-
-An ensemble of complementary methods, arbitrated by an LLM with production-grade safeguards, offers a viable path forward, not just for COICOP, but for **any survey facing the same constraint**. TTC can be retrained for any language, the main requirement is an annotated training dataset.
+- Product and activity coding is a recurring bottleneck across official statistics.
+- Our method offers a viable path forward for any survey
+- TTC can be retrained for any coding (classification or language), the main requirement is an annotated training dataset.
 
 :::
 
