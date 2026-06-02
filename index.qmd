@@ -127,51 +127,6 @@ The Coding Methods
 Here's the overall pipeline. Raw product labels first pass through a rule-based pre-filter. Those that aren't caught are processed by three independent methods in parallel: LCS, TTC, and RAG. A final LLM-as-Judge step arbitrates between the three predictions. The pipeline runs as a DAG on Argo Workflows on the SSPCloud Kubernetes cluster, with data flowing via Parquet files on S3.
 :::
 
-## MLOps: the production stack {#section_3_2 .backgroundStandard_bleu}
-
-:::{.enteteAvecTitre}
-LLM-as-Judge
-:::
-
-::: {.columns}
-
-::: {.column width="55%"}
-**SSPCloud** : INSEE's open data science platform, built on **Onyxia**, running on **Kubernetes**.
-
-- Argo Workflows sequences the 9 pipeline steps, running the three methods in parallel, then feeding results into the LLM-as-Judge
-
-- Each step reads/writes **Parquet files on S3**
-
-- LLMs are served via **vLLM** and exposed through an internal LLM platform providing an OpenAI-compatible API, connected to SSPCloud.
-
-:::
-
-::: {.column width="45%"}
-::: {style="text-align: center; margin-top: 1em;"}
-![](img/logos/onyxia.svg){height=45px style="margin: 0 0.5em;"}
-![](img/logos/kubernetes.svg){height=45px style="margin: 0 0.5em;"}
-![](img/logos/argo.svg){height=45px style="margin: 0 0.5em;"}
-![](img/logos/vllm.png){height=45px style="margin: 0 0.5em;"}
-![](img/logos/langfuse.png){height=45px style="margin: 0 0.5em;"}
-![](img/logos/mlflow.svg){height=45px style="margin: 0 0.5em;"}
-:::
-
-| Component | Role |
-|-----------|------|
-| Argo Workflows | jobs orchestration |
-| vLLM | LLM inference & embeddings |
-| Qdrant | Vector database |
-| Langfuse | Prompt versioning |
-| MLflow | Experiment tracking |
-
-:::
-
-:::
-
-::: {.notes}
-SSPCloud is INSEE's data science platform, built on the open-source Onyxia project. Everything runs on Kubernetes. The pipeline is a 9-step DAG orchestrated by Argo Workflows. Each step is containerised and independently versioned. Data flows via Parquet files on S3-compatible MinIO storage. vLLM serves both the embedding model and the generative LLM. Langfuse versions prompts and traces experiments. MLflow tracks evaluation metrics. The auto-resume capability means interrupted runs don't lose work.
-:::
-
 ## Method 1 - LCSubstr: leveraging historical annotations {#section_2_2 .backgroundStandard_vert}
 
 :::{.enteteAvecTitre}
@@ -320,7 +275,7 @@ LLM-as-Judge
 
 **Why LLM rather than majority vote?**
 
-A vote counts voices / the LLM **weights quality signals** (confidence, distance) and uses the full purchase context to resolve what no method could distinguish alone.
+A vote counts voices but the LLM **weights quality signals** (confidence, distance) and uses the full purchase context to resolve what no method could distinguish alone.
 :::
 
 ::: {.column width="45%"}
@@ -337,7 +292,7 @@ A vote counts voices / the LLM **weights quality signals** (confidence, distance
 The LLM-as-Judge step receives the three predictions and arbitrates. Two shortcuts keep costs under control. First, the consensus short-circuit: if all three agree and TTC confidence is above 90%, we skip the LLM entirely. Second, nomenclature filtering: instead of injecting all ~700 COICOP codes into every prompt, we filter to the relevant sections — cutting token counts by a factor of 4 to 10. The output is forced to be structured JSON for reliable parsing at scale.
 :::
 
-## Results {#section_3_3 .backgroundStandard_bleu}
+## Results {#section_3_2 .backgroundStandard_bleu}
 
 :::{.enteteAvecTitre}
 LLM-as-Judge
@@ -365,7 +320,7 @@ LLM-as-Judge
 
 - **Human baseline: ~90% at L5** *(with internet access)*
 - **Pipeline** *(no external lookup)*:
-  - **L1: 90.0%** → consumption baskets & CPI *(best single method → TTC: 87.6%)*
+  - **L1: 90.0%** → consumption baskets *(best single method → TTC: 87.6%)*
   - **L4: 82.6%** → HBS team *(best single method → TTC: 81.1%)*
   - **L5: 79.4%** → Eurostat *(only the pipeline produces it)*
 
@@ -377,6 +332,52 @@ LLM-as-Judge
 
 ::: {.notes}
 The hybrid ensemble outperforms every individual method. Per-method accuracy at L4: LCS 47.1%, RAG 65.5%, TTC 81.1% — pipeline 82.6%. At L1: LCS 67.5%, RAG 82.7%, TTC 87.6% — pipeline 90.0%. TTC is the strongest single method, but the pipeline adds ~1.5pp at L4 and is the only method producing L5 predictions (79.4%). The ~10pp gap vs human at L5 is partly explained by context asymmetry: human annotators can search the web; the pipeline runs on internal servers with no external access. Accuracy figures are conservative — ~10% of test annotations contain errors, so true pipeline accuracy is likely higher.
+:::
+
+## MLOps: the experimentation stack {#section_3_3 .backgroundStandard_bleu}
+
+:::{.enteteAvecTitre}
+LLM-as-Judge
+:::
+
+::: {.columns}
+
+::: {.column width="55%"}
+**SSPCloud** : INSEE's open data science platform, built on **Onyxia**, running on **Kubernetes**.
+*This platform is not a production one, used for experimentation but the pipeline is designed to be production-ready.*
+
+- Argo Workflows sequences the 9 pipeline steps, running the three methods in parallel, then feeding results into the LLM-as-Judge
+
+- Each step reads/writes **Parquet files on S3**
+
+- LLMs are served via **vLLM** and exposed through an internal LLM platform providing an OpenAI-compatible API, connected to SSPCloud.
+
+:::
+
+::: {.column width="45%"}
+::: {style="text-align: center; margin-top: 1em;"}
+![](img/logos/onyxia.svg){height=45px style="margin: 0 0.5em;"}
+![](img/logos/kubernetes.svg){height=45px style="margin: 0 0.5em;"}
+![](img/logos/argo.svg){height=45px style="margin: 0 0.5em;"}
+![](img/logos/vllm.png){height=45px style="margin: 0 0.5em;"}
+![](img/logos/langfuse.png){height=45px style="margin: 0 0.5em;"}
+![](img/logos/mlflow.svg){height=45px style="margin: 0 0.5em;"}
+:::
+
+| Component | Role |
+|-----------|------|
+| Argo Workflows | jobs orchestration |
+| vLLM | LLM inference & embeddings |
+| Qdrant | Vector database |
+| Langfuse | Prompt versioning |
+| MLflow | Experiment tracking |
+
+:::
+
+:::
+
+::: {.notes}
+SSPCloud is INSEE's data science platform, built on the open-source Onyxia project. Everything runs on Kubernetes. The pipeline is a 9-step DAG orchestrated by Argo Workflows. Each step is containerised and independently versioned. Data flows via Parquet files on S3-compatible MinIO storage. vLLM serves both the embedding model and the generative LLM. Langfuse versions prompts and traces experiments. MLflow tracks evaluation metrics. The auto-resume capability means interrupted runs don't lose work.
 :::
 
 # 4. Conclusion {#chapters_4 .backgroundTitre_bleu}
@@ -400,7 +401,7 @@ Conclusion
   - **Collecting 3M annotated labels** for TTC training : high effort, hard to scale
   - Accuracy **underestimated** : ~10% error rate in manual annotations inflates apparent errors
   - **Sparse coverage** for some COICOP divisions (level 1)
-- Lack of **confidence indicators** to target **manual review** effectively
+- Poor reliability of **confidence indicators** to target **manual review** effectively
 - Deployment challenges (**GPU requirements**)
 :::
 
@@ -440,8 +441,8 @@ Conclusion
 **The key message**
 
 - Product and activity coding is a recurring bottleneck across official statistics.
-- Our method offers a viable path forward for any survey
-- TTC can be retrained for any coding (classification or language), the main requirement is an annotated training dataset.
+- Our method offers a viable path forward for any survey requiring classification.
+- TTC can be retrained for any classification task or language, the main requirement is an annotated training dataset.
 
 :::
 
