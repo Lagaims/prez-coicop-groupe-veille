@@ -27,11 +27,7 @@ editor:
 
 # 1. Context {#chapters_1 .backgroundTitre_violet}
 
-::: {.notes}
-Let me start with the context: what COICOP is, why it matters, and the specific challenges of the 2026 BdF wave.
-:::
-
-## COICOP: a hierarchical consumption classification {#section_1_0 .backgroundStandard_violet}
+## Few context elements {#section_1_1 .backgroundStandard_violet}
 
 :::{.enteteAvecTitre}
 Context
@@ -39,62 +35,26 @@ Context
 
 ::: {.columns}
 
-::: {.column width="55%"}
-**Classification of Individual Consumption by Purpose**
+::: {.column width="45%"}
 
-- International standard — backbone of **CPI computation** across EU member states
-- Hierarchical: division → group → class → sub-class (~500 codes at level 5)
+**COICOP : Classification of Individual Consumption by Purpose**
+
+- Hierarchical classification : on 5 levels (we code at level 4)
 - Assigning a code requires understanding both the **product** and its **purpose**
 
 | Level | Example |
 |-------|---------|
-| 1 - Division | `01` — Food |
-| 4 - Sub-class | `01.1.1.1` — Rice |
-:::
+| 1 - Division | `01` - Food |
+| 4 - Sub-class | `01.1.1.1` - Rice |
 
-::: {.column width="45%"}
-**A cross-cutting challenge for OS**
-
-| Survey / Register | Classification |
-|-------------------|----------------|
-| Business registers | NACE |
-| **Household Budget Survey** | **COICOP** |
-| Professions | SPC |
-
-<br>
-
-**Historically manual — now unsustainable**
-
-Volumes have grown; expert teams have shrunk.
-
-[A recurring bottleneck across official statistics.]{.bold}
-:::
 
 :::
-
-::: {.notes}
-COICOP — Classification of Individual Consumption by Purpose — is the international standard for classifying household expenditures. It's hierarchical: 12 top-level divisions, subdivided into groups, classes, and sub-classes. About 500 active leaf codes. Assigning a code requires understanding both what the product is and what it's used for — a pure string match is not enough. The same challenge exists across official statistics: NACE for businesses, ISCO for occupations. The approach we present here was built for COICOP but designed with generalisability in mind.
-:::
-
-## The 2026 HBS wave: a perfect storm {#section_1_1 .backgroundStandard_violet}
-
-:::{.enteteAvecTitre}
-Context
-:::
-
-::: {.columns}
 
 ::: {.column width="55%"}
-**Household Budget Survey (HBS)**
+**Household Budget Survey (HBS) : new wave in 2026**
 
-- Conducted every **5 years** — last wave: 2017
+- **Goal:** understand households expenditure (consumption basket)
 - ~**70,000 distinct free-text labels** to code into COICOP
-- Goal: reconstruct consumption baskets → **CPI & inflation analysis**
-
-:::
-
-::: {.column width="45%"}
-**2026 — everything has changed at once**
 
 - New collection modes: smartphone, receipts, paper
 - Former rule-based system **obsolete**
@@ -123,12 +83,11 @@ Context
 **Classification**
 
 - ~900 granular COICOP classes (all levels), distributed in five hierarchical levels
-- COICOP classes updated since the last wave
 
 **Labels**
 
 - Heterogeneous textual inputs — format and verbosity vary widely across sources
-- Generic, ambiguous, or uninformative (*"divers alimentaire"*, *"article"*)
+- Generic, ambiguous, or uninformative (*"various food"*, *"article"*)
 - Same string can map to different codes depending on context
 
 :::
@@ -180,7 +139,7 @@ The Coding Methods
 ::: {.column width="55%"}
 **Principle**
 
-- Compares each label against a **suggester**: a ranked list of the most frequently annotated historical labels with their COICOP code
+- Compares each label against a **suggester**: a curated list of reliably coded labels with their validated COICOP code
 - Returns the best match and its similarity score
 
 **Intuition** — *Query:* `"baguette"` (bread)
@@ -222,9 +181,9 @@ The Coding Methods
 ::: {.columns}
 
 ::: {.column width="55%"}
-**Architecture**
+**torchText Classifiers : Architecture**
 
-- Character n-gram tokenizer (3–6 grams) + 128-dim embedding — fastText-inspired
+- Character n-gram tokenizer (3–6 grams) + 128-dim embedding (fastText-inspired)
 - **Flat** variant: direct level 4 COICOP prediction
 - **Hierarchical** variant: cascade of 5 classifiers, one per COICOP level
 
@@ -240,7 +199,7 @@ The Coding Methods
 | | TTC |
 |---|---|
 | Input dependency | Labelled training data |
-| Process | GPU training — no LLM at inference |
+| Process | GPU training / no LLM at inference |
 | Speed | Very fast (ms) |
 | Quality signal | Calibrated confidence score |
 
@@ -300,7 +259,7 @@ The third method is RAG. Offline, we build a semantic index of all COICOP code d
 Once we have three sets of predictions, we need to decide which one to trust. That's the LLM-as-Judge step — and it's where we also address cost and infrastructure.
 :::
 
-## Arbitrating between methods — intelligently {#section_3_1 .backgroundStandard_bleu}
+## Arbitrating between methods {#section_3_1 .backgroundStandard_bleu}
 
 :::{.enteteAvecTitre}
 LLM-as-Judge
@@ -317,14 +276,14 @@ LLM-as-Judge
 
 **Why LLM rather than majority vote?**
 
-A vote counts voices — the LLM **weights quality signals** (confidence, distance) and uses the full purchase context to resolve what no method could distinguish alone.
+A vote counts voices / the LLM **weights quality signals** (confidence, distance) and uses the full purchase context to resolve what no method could distinguish alone.
 :::
 
 ::: {.column width="45%"}
 **Two cost-saving shortcuts**
 
-1. **Consensus short-circuit** — if all three methods agree *and* TTC confidence ≥ 0.90 → **no LLM call**, prediction accepted directly
-2. **Classification filtering** — only the relevant COICOP sections are injected → **4–10× fewer tokens**
+1. **Consensus short-circuit** : if all three methods agree *and* TTC confidence ≥ 0.90 → **no LLM call**, prediction accepted directly
+2. **Classification filtering** : only the relevant COICOP sections are injected → **4–10× fewer tokens**
 
 :::
 
@@ -343,9 +302,9 @@ LLM-as-Judge
 ::: {.columns}
 
 ::: {.column width="55%"}
-**SSPCloud** — INSEE's open data science platform, built on **Onyxia**, running on **Kubernetes**.
+**SSPCloud** : INSEE's open data science platform, built on **Onyxia**, running on **Kubernetes**.
 
-- Argo Workflows sequences the 9 pipeline steps — running the three methods in parallel, then feeding results into the LLM-as-Judge
+- Argo Workflows sequences the 9 pipeline steps, running the three methods in parallel, then feeding results into the LLM-as-Judge
 
 - Each step reads/writes **Parquet files on S3** (MinIO)
 
@@ -393,34 +352,34 @@ LLM-as-Judge
 
 | Pipeline coding stage | Coverage |
 |----------------------|---------:|
-| **Step 1 — Regex** | |
+| **Step 1 - Regex** | |
 | &emsp; Regex pattern | 8% |
 | &emsp; Manual review flagged | 1% |
-| **Step 2 — Three methods** | |
+| **Step 2 - Three methods** | |
 | &emsp; Consensus shortcut (no LLM call) | 7% |
-| **Step 3 — LLM-as-Judge** | |
+| **Step 3 - LLM-as-Judge** | |
 | &emsp; LLM-as-Judge arbitration | 84% |
 | &emsp; *↳ of which: flagged for expert review* | *3.5%* |
 
 :::
 
 ::: {.column width="55%"}
-**Accuracy** *(~8,000 annotated labels, 1 annotator)*
+**Accuracy** *(~8,000 annotated labels)*
 
 - **Human baseline: ~90% at L5** *(with internet access)*
-- **Pipeline predictions** *(no external lookup)*:
-  - **L1** : consumption baskets (CPI) → LCS: 67.5% / RAG: 82.7% / TTC: 87.6% / **Pipeline: 90.0%**
-  - **L4** : delivered to the HBS team → LCS: 47.1% / RAG: 65.5% / TTC: 81.1% / **Pipeline: 82.6%**
-  - **L5** : Eurostat standard *(TTC & RAG stop at L4)* → **Pipeline only: 79.4%**
+- **Pipeline** *(no external lookup)*:
+  - **L1: 90.0%** → consumption baskets & CPI *(best single method → TTC: 87.6%)*
+  - **L4: 82.6%** → HBS team *(best single method → TTC: 81.1%)*
+  - **L5: 79.4%** → Eurostat *(only the pipeline produces it)*
 
-*Accuracy likely **underestimated**: ~10% of test labels contain annotation errors.*
+*Accuracy likely **underestimated**: ~10% known error rate in manual annotations (domain expert estimate).*
 
 :::
 
 :::
 
 ::: {.notes}
-The key finding is that the hybrid ensemble outperforms any single method. The ~10pp gap between human (90%) and pipeline (79.4%) at level 5 is partly explained by context asymmetry: human annotators can search the web, while the pipeline runs on an internal server with no external access. Accuracy figures are also conservative — roughly 10% of the test set annotations contain errors, so the pipeline's true accuracy is likely higher. The consensus shortcut reduces LLM calls significantly while preserving accuracy on agreed cases.
+The hybrid ensemble outperforms every individual method. Per-method accuracy at L4: LCS 47.1%, RAG 65.5%, TTC 81.1% — pipeline 82.6%. At L1: LCS 67.5%, RAG 82.7%, TTC 87.6% — pipeline 90.0%. TTC is the strongest single method, but the pipeline adds ~1.5pp at L4 and is the only method producing L5 predictions (79.4%). The ~10pp gap vs human at L5 is partly explained by context asymmetry: human annotators can search the web; the pipeline runs on internal servers with no external access. Accuracy figures are conservative — ~10% of test annotations contain errors, so true pipeline accuracy is likely higher.
 :::
 
 # 4. Conclusion {#chapters_4 .backgroundTitre_bleu}
@@ -455,7 +414,6 @@ Conclusion
 - Improve the **LCS suggester** with richer (product, code) pair context
 - Improve the **TTC model** with a **receipt-specific tokenizer**
 - Log all **RAG traces** in **Langfuse**, not just prompt versioning
-- **Benchmark** all methods against manual annotations using **LLM-as-Judge**
 :::
 
 :::
@@ -476,21 +434,18 @@ Conclusion
 **A hybrid, production-ready pipeline**
 
 - **Rule-based pre-filter** handles high-confidence, easy cases at zero ML cost
-- **Three complementary ML methods** (LCS, TTC, RAG) cover different failure modes — no single method dominates
-- **LLM-as-Judge** arbitrates intelligently, with a consensus shortcut and 4–10× token reduction keeping inference costs manageable
-- **Fully open-source MLOps** on SSPCloud — Argo, vLLM, Qdrant, Langfuse, MLflow
+- **Three complementary ML methods** (LCS, TTC, RAG) cover different failure modes : each contributes where others fall short
+- **LLM-as-Judge** arbitrates intelligently, with a consensus shortcut
+- **Fully open-source MLOps** on SSPCloud with these tools : Argo, vLLM, Qdrant, Langfuse, MLflow
 :::
 
 ::: {.column width="45%"}
-**The broader message**
+**The key message**
 
-Product and activity coding is a recurring bottleneck across official statistics — one that traditional rule-based systems can no longer handle at scale.
+Product and activity coding is a recurring bottleneck across official statistics, one that traditional rule-based systems can no longer handle at scale.
 
-An ensemble of complementary methods, arbitrated by an LLM with production-grade safeguards, offers a viable path forward — not just for COICOP, but for **any survey facing the same constraint**. TTC can be retrained for any language with an annotated dataset — that portability is by design in the TTC framework.
+An ensemble of complementary methods, arbitrated by an LLM with production-grade safeguards, offers a viable path forward, not just for COICOP, but for **any survey facing the same constraint**. TTC can be retrained for any language, the main requirement is an annotated training dataset.
 
-::: {.fragment .fade-in style="margin-top: 1.5em;"}
-[Replicate the expertise of 7 annotators automatically. Build it in 6 months. Make it reproducible.]{.bold}
-:::
 :::
 
 :::
