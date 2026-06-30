@@ -450,7 +450,7 @@ SSPCloud is INSEE's data science platform, built on the open-source Onyxia proje
 Let me close with the limits, opportunities, and conclusion.
 :::
 
-## Limits & Improvements {#section_4_1 .backgroundStandard_bleu}
+## Limits & Improvements {#section_6_1 .backgroundStandard_bleu}
 
 :::{.enteteAvecTitre}
 Conclusion
@@ -484,7 +484,7 @@ Conclusion
 The main limits are accuracy heterogeneity across COICOP divisions — divisions with sparse historical data are harder — and the unreliability of LLM self-reported confidence as a standalone filter. The opportunities are significant: an active learning loop with the expert annotator, improved retrieval, and direct reuse of the approach for other classifications and other NSIs.
 :::
 
-## Conclusion {#section_4_2 .backgroundStandard_bleu}
+## Conclusion {#section_6_2 .backgroundStandard_bleu}
 
 :::{.enteteAvecTitre}
 Conclusion
@@ -523,11 +523,14 @@ Thank you for your attention.
 :::: {.columns .coordonneesFinales}
 
 ::: {.column .gauche .coordonnees width=30%}
+- Cédric COURALET
 - Laura GAIMARD
-- Data Scientist
+- Julien PRAMIL
 - [Directorate of statistical methodology]{.ligneBlancheApres}
 - [Insee — France]{.ligneBlancheApres}
+- cedric.couralet@insee.fr
 - laura.gaimard@insee.fr
+- julien.pramil@insee.fr
 :::
 
 ::: {.column .coordonnees .milieu width=30%}
